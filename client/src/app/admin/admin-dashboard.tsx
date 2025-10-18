@@ -814,6 +814,7 @@ export function AdminDashboard({ initialFilters }: AdminDashboardProps) {
             product={
               dialogState?.mode === "edit" ? dialogState.product : undefined
             }
+            categoryOptions={categories}
             onCancel={closeDialog}
             onSubmit={handleSubmit}
             isSubmitting={isBusy}

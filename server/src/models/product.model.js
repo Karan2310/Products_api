@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const productImageSchema = new mongoose.Schema(
   {
     url: { type: String, required: true },
+    publicId: { type: String },
   },
   { _id: false },
 );

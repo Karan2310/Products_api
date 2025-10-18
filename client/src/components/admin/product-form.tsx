@@ -1,11 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Trash2 } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,21 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 import type { Product } from "@/types/products";
 
@@ -62,6 +77,7 @@ export interface ProductFormSubmitPayload {
 interface ProductFormProps {
   mode: "create" | "edit";
   product?: Product;
+  categoryOptions: string[];
   onSubmit: (payload: ProductFormSubmitPayload) => Promise<void>;
   onCancel: () => void;
   isSubmitting?: boolean;
@@ -70,10 +86,29 @@ interface ProductFormProps {
 export function ProductForm({
   mode,
   product,
+  categoryOptions,
   onSubmit,
   onCancel,
   isSubmitting = false,
 }: ProductFormProps) {
+  const uniqueCategoryOptions = useMemo(
+    () =>
+      Array.from(new Set(categoryOptions))
+        .map((option) => option.trim())
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b)),
+    [categoryOptions],
+  );
+
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState("");
+
+  useEffect(() => {
+    if (!categoryOpen) {
+      setCategorySearch("");
+    }
+  }, [categoryOpen]);
+
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -247,7 +282,74 @@ export function ProductForm({
               <FormItem className="sm:col-span-2">
                 <FormLabel>Category</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g. Shoes" {...field} />
+                  <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={categoryOpen}
+                        className="w-full justify-between"
+                      >
+                        {field.value ? field.value : "Select category"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0" align="start">
+                      <Command>
+                        <CommandInput
+                          placeholder="Search categories..."
+                          value={categorySearch}
+                          onValueChange={setCategorySearch}
+                        />
+                        <CommandList>
+                          <CommandEmpty>No category found.</CommandEmpty>
+                          <CommandGroup heading="Suggestions">
+                            {uniqueCategoryOptions.map((option) => (
+                              <CommandItem
+                                key={option}
+                                value={option}
+                                onSelect={(value) => {
+                                  field.onChange(value);
+                                  setCategoryOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    field.value === option
+                                      ? "opacity-100"
+                                      : "opacity-0",
+                                  )}
+                                />
+                                {option}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                          {categorySearch.trim().length > 0 &&
+                            !uniqueCategoryOptions
+                              .map((option) => option.toLowerCase())
+                              .includes(categorySearch.trim().toLowerCase()) && (
+                              <>
+                                <CommandSeparator />
+                                <CommandGroup heading="Create">
+                                  <CommandItem
+                                    value={categorySearch.trim()}
+                                    onSelect={(value) => {
+                                      field.onChange(value);
+                                      setCategoryOpen(false);
+                                    }}
+                                  >
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Create {categorySearch.trim()}
+                                  </CommandItem>
+                                </CommandGroup>
+                              </>
+                            )}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </FormControl>
                 <FormMessage />
               </FormItem>
