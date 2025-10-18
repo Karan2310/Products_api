@@ -13,7 +13,9 @@ const app = express();
 configureCloudinary();
 
 const corsOptions = {
-  origin: env.CLIENT_ORIGIN ? [env.CLIENT_ORIGIN] : true,
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(cors(corsOptions));
