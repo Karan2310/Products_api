@@ -2,15 +2,9 @@
   "version": 2,
   "functions": {
     "api/index.js": {
-      "runtime": "nodejs22.x",
-      "memory": 1024,
-      "maxDuration": 60
+      "maxDuration": 60,
+      "memory": 1024
     }
   },
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/index.js"
-    }
-  ]
+  "routes": [{ "src": "/(.*)", "dest": "api/index.js" }]
 }
