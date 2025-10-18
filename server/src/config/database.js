@@ -2,21 +2,26 @@ import mongoose from "mongoose";
 
 import env from "./env.js";
 
+const globalCache = globalThis.__mongoose ?? { conn: null, promise: null };
+globalThis.__mongoose = globalCache;
+
 export const connectDatabase = async () => {
-  if (mongoose.connection.readyState === 1) {
-    return mongoose.connection;
+  if (globalCache.conn) {
+    return globalCache.conn;
   }
 
-  if (mongoose.connection.readyState === 2) {
-    await mongoose.connection.asPromise();
-    return mongoose.connection;
+  if (!globalCache.promise) {
+    globalCache.promise = mongoose.connect(env.MONGODB_URI).then(() => {
+      console.log("Connected to MongoDB");
+      return mongoose.connection;
+    });
   }
 
   try {
-    await mongoose.connect(env.MONGODB_URI);
-    console.log("Connected to MongoDB");
-    return mongoose.connection;
+    globalCache.conn = await globalCache.promise;
+    return globalCache.conn;
   } catch (error) {
+    globalCache.promise = null;
     console.error("MongoDB connection error", error);
     throw error;
   }
