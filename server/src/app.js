@@ -21,6 +21,10 @@ app.options("*", cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+app.get("/", (_req, res) => {
+  res.send("hello");
+});
+
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
