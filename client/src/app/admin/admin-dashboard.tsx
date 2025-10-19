@@ -13,6 +13,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
+import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -488,6 +489,9 @@ export function AdminDashboard({ initialFilters }: AdminDashboardProps) {
               )}
             />
             {isFetching ? "Refreshing" : "Refresh"}
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/admin/orders">Orders</Link>
           </Button>
           <ModeToggle />
           <DropdownMenu>

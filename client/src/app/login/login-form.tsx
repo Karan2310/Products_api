@@ -1,8 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, Loader2, Lock } from "lucide-react";
-import { signIn } from "next-auth/react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { getSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -27,7 +27,18 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function LoginForm() {
+interface LoginFormProps {
+  redirectTo?: string | null;
+}
+
+const resolveRedirectTarget = (redirectTo?: string | null, fallback?: string) => {
+  if (redirectTo && redirectTo.startsWith("/")) {
+    return redirectTo;
+  }
+  return fallback;
+};
+
+export function LoginForm({ redirectTo }: LoginFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -58,11 +69,19 @@ export function LoginForm() {
       return;
     }
 
+    const session = await getSession();
+    const role = session?.user?.role;
+
+    const destination =
+      role === "admin"
+        ? "/admin"
+        : resolveRedirectTarget(redirectTo, "/shop");
+
     toast.success("Signed in", {
-      description: "Welcome back!",
+      description: role === "admin" ? "Welcome back, admin!" : "Welcome back!",
     });
 
-    router.push("/admin");
+    router.replace(destination);
     router.refresh();
   };
 
@@ -76,11 +95,7 @@ export function LoginForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input
-                  placeholder="admin@example.com"
-                  type="email"
-                  {...field}
-                />
+                  <Input placeholder="you@example.com" type="email" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

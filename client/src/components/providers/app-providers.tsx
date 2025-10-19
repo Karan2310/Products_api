@@ -6,6 +6,7 @@ import { SessionProvider } from "next-auth/react";
 import { ReactNode, useState } from "react";
 import { Toaster } from "sonner";
 
+import { CartProvider } from "@/components/cart/cart-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 
 interface AppProvidersProps {
@@ -20,8 +21,10 @@ export function AppProviders({ children, session }: AppProvidersProps) {
     <SessionProvider session={session}>
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
-          {children}
-          <Toaster position="top-right" richColors duration={4000} />
+          <CartProvider>
+            {children}
+            <Toaster position="top-right" richColors duration={4000} />
+          </CartProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </SessionProvider>

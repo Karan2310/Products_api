@@ -16,6 +16,8 @@ const envSchema = z
     CLOUDINARY_API_SECRET: z.string().optional(),
     CLOUDINARY_UPLOAD_FOLDER: z.string().default("products"),
     CLIENT_ORIGIN: z.string().optional(),
+    CHATBOT_API_URL: z.string().url().optional(),
+    CHATBOT_API_KEY: z.string().optional(),
   })
   .superRefine((values, ctx) => {
     if (!values.ADMIN_PASSWORD && !values.ADMIN_PASSWORD_HASH) {
@@ -52,6 +54,8 @@ const env = envSchema.parse({
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
   CLOUDINARY_UPLOAD_FOLDER: process.env.CLOUDINARY_UPLOAD_FOLDER,
   CLIENT_ORIGIN: process.env.CLIENT_ORIGIN,
+  CHATBOT_API_URL: process.env.CHATBOT_API_URL,
+  CHATBOT_API_KEY: process.env.CHATBOT_API_KEY,
 });
 
 export default env;

@@ -16,9 +16,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const APP_NAME = "Products Portal";
+
 export const metadata: Metadata = {
-  title: "Products Admin",
-  description: "Admin portal for managing e-commerce products.",
+  title: {
+    default: APP_NAME,
+    template: `%s | ${APP_NAME}`,
+  },
+  description:
+    "Modern storefront and admin console for managing products, carts, and orders.",
 };
 
 export default async function RootLayout({

@@ -42,7 +42,10 @@ export const authOptions: NextAuthConfig = {
           }
 
           const payload = (await response.json().catch(() => null)) as
-            | { token?: string; user?: { id: string; email: string; role?: string } }
+            | {
+                token?: string;
+                user?: { id: string; email: string; role?: string; name?: string | null };
+              }
             | null;
 
           if (!payload?.token || !payload.user) {
@@ -51,7 +54,7 @@ export const authOptions: NextAuthConfig = {
 
           return {
             ...payload.user,
-            role: payload.user.role ?? "admin",
+            role: payload.user.role ?? "user",
             accessToken: payload.token,
           };
         } catch (error) {
@@ -64,8 +67,9 @@ export const authOptions: NextAuthConfig = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as { role?: string }).role ?? "admin";
+        token.role = (user as { role?: string }).role ?? "user";
         token.accessToken = (user as { accessToken?: string }).accessToken;
+        token.name = (user as { name?: string | null }).name ?? token.name;
       }
 
       return token;
@@ -75,6 +79,7 @@ export const authOptions: NextAuthConfig = {
         session.user = {
           ...session.user,
           role: token.role as string,
+          name: (session.user?.name ?? token.name ?? null) as string | null,
         };
       }
 

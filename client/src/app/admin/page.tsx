@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
@@ -9,6 +10,11 @@ type AdminSearchParams = Record<string, string | string[] | undefined>;
 interface AdminPageProps {
   searchParams?: Promise<AdminSearchParams>;
 }
+
+export const metadata: Metadata = {
+  title: "Admin Dashboard",
+  description: "Manage catalogue inventory, pricing, and orders for Products Portal.",
+};
 
 const parseFilters = (params: AdminSearchParams): ProductFilters => {
   const page = Number(Array.isArray(params.page) ? params.page[0] : params.page) || 1;
