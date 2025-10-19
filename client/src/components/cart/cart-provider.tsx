@@ -20,6 +20,35 @@ export type CartItem = {
   stock?: number;
 };
 
+const clampStockValue = (stock?: number) => {
+  if (typeof stock !== "number" || Number.isNaN(stock)) {
+    return undefined;
+  }
+
+  const normalized = Math.floor(stock);
+
+  if (normalized < 0) {
+    return 0;
+  }
+
+  return Math.min(99, normalized);
+};
+
+const clampQuantityAgainstStock = (quantity: number, stock?: number) => {
+  const normalizedQuantity = Math.max(1, Math.min(99, Math.floor(quantity)));
+  const normalizedStock = clampStockValue(stock);
+
+  if (normalizedStock === undefined) {
+    return normalizedQuantity;
+  }
+
+  if (normalizedStock <= 0) {
+    return 0;
+  }
+
+  return Math.min(normalizedQuantity, normalizedStock);
+};
+
 type CartContextValue = {
   items: CartItem[];
   totalItems: number;
@@ -67,9 +96,8 @@ const loadInitialState = (): CartItem[] => {
           title: item.title,
           price: item.price,
           image: item.image ?? null,
-          quantity: Math.max(1, Math.min(99, Math.floor(item.quantity))),
-          stock:
-            typeof item.stock === "number" && item.stock >= 0 ? Math.floor(item.stock) : undefined,
+          quantity: clampQuantityAgainstStock(item.quantity, item.stock),
+          stock: clampStockValue(item.stock),
         } satisfies CartItem;
       })
       .filter(Boolean) as CartItem[];
@@ -95,25 +123,44 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       setItems((current) => {
         const existingIndex = current.findIndex((p) => p.productId === item.productId);
         const normalizedQuantity = Math.max(1, Math.min(99, Math.floor(quantity)));
+        const normalizedStock = clampStockValue(item.stock);
 
         if (existingIndex === -1) {
+          const quantityToAdd = clampQuantityAgainstStock(normalizedQuantity, normalizedStock);
+
+          if (quantityToAdd === 0) {
+            return current;
+          }
+
           return [
             ...current,
             {
               ...item,
-              quantity: normalizedQuantity,
+              stock: normalizedStock,
+              quantity: quantityToAdd,
             },
           ];
         }
 
         const next = [...current];
         const existing = next[existingIndex];
-        const nextQuantity = Math.max(
-          1,
-          Math.min(99, existing.quantity + normalizedQuantity),
+        const effectiveStock =
+          clampStockValue(existing.stock) ?? normalizedStock ?? undefined;
+        const nextQuantity = clampQuantityAgainstStock(
+          existing.quantity + normalizedQuantity,
+          effectiveStock,
         );
+
+        if (nextQuantity === 0) {
+          const nextItems = [...current];
+          nextItems.splice(existingIndex, 1);
+          return nextItems;
+        }
+
         next[existingIndex] = {
           ...existing,
+          ...item,
+          stock: effectiveStock,
           quantity: nextQuantity,
         };
 
@@ -131,13 +178,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             return item;
           }
 
-          const normalizedQuantity = Math.max(1, Math.min(99, Math.floor(quantity)));
+          const nextQuantity = clampQuantityAgainstStock(quantity, item.stock);
+
+          if (nextQuantity === 0) {
+            return null;
+          }
+
           return {
             ...item,
-            quantity: normalizedQuantity,
+            quantity: nextQuantity,
           };
         })
-        .filter(Boolean),
+        .filter((cartItem): cartItem is CartItem => Boolean(cartItem)),
     );
   }, []);
 

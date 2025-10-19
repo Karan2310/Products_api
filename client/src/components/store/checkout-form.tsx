@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,8 +22,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Home, Building2, MapPin } from "lucide-react";
+import { AddressFormDialog } from "@/components/profile/address-form-dialog";
+import { useProfile } from "@/components/profile/profile-provider";
 import { sendChatbotEvent } from "@/lib/chatbot";
-import { formatCurrencyINR } from "@/lib/utils";
+import { cn, formatCurrencyINR } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -47,9 +51,12 @@ interface CheckoutFormProps {
 
 export function CheckoutForm({ defaultName, defaultEmail }: CheckoutFormProps) {
   const { items, subtotal, clearCart } = useCart();
+  const { addresses, basics } = useProfile();
   const router = useRouter();
   const { data: session } = useSession();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [addressDialogOpen, setAddressDialogOpen] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
   const form = useForm<CheckoutFormValues>({
     resolver: zodResolver(formSchema),
@@ -66,6 +73,53 @@ export function CheckoutForm({ defaultName, defaultEmail }: CheckoutFormProps) {
       notes: "",
     },
   });
+
+  useEffect(() => {
+    if ((basics.name || defaultName) && !form.getValues("name")) {
+      form.setValue("name", basics.name || defaultName || "");
+    }
+    if ((basics.email || defaultEmail) && !form.getValues("email")) {
+      form.setValue("email", basics.email || defaultEmail || "");
+    }
+    if (basics.phone && !form.getValues("phone")) {
+      form.setValue("phone", basics.phone);
+    }
+  }, [basics, defaultEmail, defaultName, form]);
+
+  useEffect(() => {
+    setSelectedAddressId((previous) => {
+      if (previous && addresses.some((address) => address.id === previous)) {
+        return previous;
+      }
+      const defaultAddress = addresses.find((address) => address.isDefault);
+      if (defaultAddress) {
+        return defaultAddress.id;
+      }
+      if (addresses.length > 0) {
+        return addresses[addresses.length - 1].id;
+      }
+      return null;
+    });
+  }, [addresses]);
+
+  useEffect(() => {
+    if (!selectedAddressId) {
+      return;
+    }
+    const selectedAddress = addresses.find((address) => address.id === selectedAddressId);
+    if (!selectedAddress) {
+      return;
+    }
+
+    form.setValue("name", selectedAddress.recipient || basics.name || "");
+    form.setValue("phone", selectedAddress.phone || basics.phone || "");
+    form.setValue("addressLine1", selectedAddress.line1 ?? "");
+    form.setValue("addressLine2", selectedAddress.line2 ?? "");
+    form.setValue("city", selectedAddress.city ?? "");
+    form.setValue("state", selectedAddress.state ?? "");
+    form.setValue("postalCode", selectedAddress.postalCode ?? "");
+    form.setValue("country", selectedAddress.country ?? "");
+  }, [selectedAddressId, addresses, basics.name, basics.phone, form]);
 
   if (items.length === 0) {
     return (
@@ -172,14 +226,90 @@ export function CheckoutForm({ defaultName, defaultEmail }: CheckoutFormProps) {
     }
   };
 
+  const iconForLabel = (label: string) => {
+    if (label === "Office") {
+      return <Building2 className="h-4 w-4 text-muted-foreground" />;
+    }
+    if (label === "Other") {
+      return <MapPin className="h-4 w-4 text-muted-foreground" />;
+    }
+    return <Home className="h-4 w-4 text-muted-foreground" />;
+  };
+
   return (
     <div className="container grid gap-8 lg:grid-cols-[2fr_1fr]">
-      <Card className="border shadow-sm">
-        <CardHeader>
-          <CardTitle>Shipping details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
+      <div className="space-y-6">
+        <Card className="border shadow-sm">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-lg">Saved addresses</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Choose a saved address or add a new one for this order.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => setAddressDialogOpen(true)}>
+              <Plus className="h-4 w-4" />
+              Add new
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {addresses.length === 0 ? (
+              <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
+                You haven&apos;t saved any addresses yet. Add one to speed up checkout next time.
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {addresses.map((address) => {
+                  const isSelected = selectedAddressId === address.id;
+                  return (
+                    <button
+                      key={address.id}
+                      type="button"
+                      onClick={() => setSelectedAddressId(address.id)}
+                      className={cn(
+                        "flex w-full flex-col gap-2 rounded-2xl border px-4 py-3 text-left transition-all",
+                        isSelected
+                          ? "border-primary bg-primary/5 shadow-sm"
+                          : "border-border/70 bg-background hover:border-primary/60",
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                          {iconForLabel(address.label)}
+                          {address.label}
+                        </div>
+                        {address.isDefault ? (
+                          <Badge variant="secondary" className="rounded-full text-xs">
+                            Default
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <p>
+                          {address.recipient}
+                          {address.phone ? ` • ${address.phone}` : ""}
+                        </p>
+                        <p>{address.line1}</p>
+                        {address.line2 ? <p>{address.line2}</p> : null}
+                        <p>
+                          {address.city}, {address.state} {address.postalCode}
+                        </p>
+                        <p>{address.country}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border shadow-sm">
+          <CardHeader>
+            <CardTitle>Shipping details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Form {...form}>
             <form className="grid gap-6" onSubmit={form.handleSubmit(onSubmit)}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
@@ -329,6 +459,7 @@ export function CheckoutForm({ defaultName, defaultEmail }: CheckoutFormProps) {
           </Form>
         </CardContent>
       </Card>
+      </div>
 
       <Card className="border shadow-sm">
         <CardHeader>
@@ -357,6 +488,7 @@ export function CheckoutForm({ defaultName, defaultEmail }: CheckoutFormProps) {
           </div>
         </CardContent>
       </Card>
+      <AddressFormDialog address={null} open={addressDialogOpen} onOpenChange={setAddressDialogOpen} />
     </div>
   );
 }

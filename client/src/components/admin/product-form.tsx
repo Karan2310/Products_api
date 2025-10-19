@@ -9,6 +9,7 @@ import { Check, ChevronsUpDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -72,6 +73,7 @@ export interface ProductFormSubmitPayload {
   values: NormalizedProductFormValues;
   existingImages: string[];
   newFiles: File[];
+  removedImages: string[];
 }
 
 interface ProductFormProps {
@@ -123,6 +125,10 @@ export function ProductForm({
   const [existingImages, setExistingImages] = useState<string[]>(
     product?.images ?? [],
   );
+  const [draggingExistingIndex, setDraggingExistingIndex] = useState<number | null>(null);
+  const [removedImages, setRemovedImages] = useState<string[]>([]);
+  const dragCounter = useRef(0);
+  const [isDropActive, setIsDropActive] = useState(false);
 
   type ImagePreview = {
     file: File;
@@ -131,6 +137,7 @@ export function ProductForm({
   };
 
   const [newPreviews, setNewPreviews] = useState<ImagePreview[]>([]);
+  const [draggingNewIndex, setDraggingNewIndex] = useState<number | null>(null);
   const previewsRef = useRef<ImagePreview[]>([]);
 
   useEffect(() => {
@@ -150,6 +157,7 @@ export function ProductForm({
       current.forEach((preview) => URL.revokeObjectURL(preview.url));
       return [];
     });
+    setRemovedImages([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product]);
 
@@ -161,6 +169,11 @@ export function ProductForm({
 
   const removeExistingImage = (url: string) => {
     setExistingImages((images) => images.filter((image) => image !== url));
+    if (product?.images?.includes(url)) {
+      setRemovedImages((current) =>
+        current.includes(url) ? current : [...current, url],
+      );
+    }
   };
 
   const removeNewFile = (id: string) => {
@@ -174,13 +187,12 @@ export function ProductForm({
     });
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files) {
+  const addIncomingFiles = (files: File[]) => {
+    if (files.length === 0) {
       return;
     }
 
-    const incoming = Array.from(files).map((file) => ({
+    const incoming = files.map((file) => ({
       file,
       url: URL.createObjectURL(file),
       id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
@@ -202,6 +214,15 @@ export function ProductForm({
 
       return [...current, ...accepted];
     });
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) {
+      return;
+    }
+
+    addIncomingFiles(Array.from(files));
     event.target.value = "";
   };
 
@@ -218,11 +239,86 @@ export function ProductForm({
       values: normalized,
       existingImages,
       newFiles: newPreviews.map((preview) => preview.file),
+      removedImages,
     });
     setNewPreviews((current) => {
       current.forEach((preview) => URL.revokeObjectURL(preview.url));
       return [];
     });
+    setRemovedImages([]);
+  };
+
+  const handleExistingDragStart = (index: number) => () => {
+    setDraggingExistingIndex(index);
+  };
+
+  const handleExistingDragOver = (index: number) => (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    setExistingImages((images) => {
+      if (draggingExistingIndex === null || draggingExistingIndex === index) {
+        return images;
+      }
+      const updated = [...images];
+      const [moved] = updated.splice(draggingExistingIndex, 1);
+      updated.splice(index, 0, moved);
+      setDraggingExistingIndex(index);
+      return updated;
+    });
+  };
+
+  const handleExistingDragEnd = () => {
+    setDraggingExistingIndex(null);
+  };
+
+  const handleNewDragStart = (index: number) => () => {
+    setDraggingNewIndex(index);
+  };
+
+  const handleNewDragOver = (index: number) => (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    setNewPreviews((current) => {
+      if (draggingNewIndex === null || draggingNewIndex === index) {
+        return current;
+      }
+      const updated = [...current];
+      const [moved] = updated.splice(draggingNewIndex, 1);
+      updated.splice(index, 0, moved);
+      setDraggingNewIndex(index);
+      return updated;
+    });
+  };
+
+  const handleNewDragEnd = () => {
+    setDraggingNewIndex(null);
+  };
+
+  const handleDropZoneDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    dragCounter.current += 1;
+    setIsDropActive(true);
+  };
+
+  const handleDropZoneDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    dragCounter.current = Math.max(0, dragCounter.current - 1);
+    if (dragCounter.current === 0) {
+      setIsDropActive(false);
+    }
+  };
+
+  const handleDropZoneDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+  };
+
+  const handleDropZoneFiles = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    dragCounter.current = 0;
+    setIsDropActive(false);
+    const files = event.dataTransfer.files;
+    if (!files) {
+      return;
+    }
+    addIncomingFiles(Array.from(files));
   };
 
   return (
@@ -370,12 +466,23 @@ export function ProductForm({
           />
         </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium">Images</h3>
+        <Card
+          className={cn(
+            "relative space-y-4 rounded-3xl border border-dashed border-border/70 bg-background/95 p-6 transition-colors",
+            isDropActive ? "border-primary/70 bg-primary/5" : "hover:border-border/50",
+          )}
+          onDragEnter={handleDropZoneDragEnter}
+          onDragLeave={handleDropZoneDragLeave}
+          onDragOver={handleDropZoneDragOver}
+          onDrop={handleDropZoneFiles}
+        >
+          <div className="relative z-10 flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Images
+              </h3>
               <p className="text-xs text-muted-foreground">
-                Upload up to 10 images. JPG, PNG, WEBP, GIF, AVIF supported.
+                Drag to reorder. Drop files anywhere in this card to add more (max 10).
               </p>
             </div>
             <Button asChild variant="outline" size="sm">
@@ -392,11 +499,23 @@ export function ProductForm({
             </Button>
           </div>
 
-        <div className="grid max-h-80 gap-3 overflow-y-auto pr-2 sm:grid-cols-3">
-            {existingImages.map((url) => (
+          {isDropActive ? (
+            <div className="pointer-events-none absolute inset-3 rounded-3xl border border-primary/60 bg-primary/10" />
+          ) : null}
+
+          <div className="relative z-10 grid max-h-80 gap-3 overflow-y-auto pr-2 sm:grid-cols-3">
+            {existingImages.map((url, index) => (
               <figure
                 key={url}
-                className="relative overflow-hidden rounded-lg border"
+                draggable
+                onDragStart={handleExistingDragStart(index)}
+                onDragOver={handleExistingDragOver(index)}
+                onDragEnd={handleExistingDragEnd}
+                className={cn(
+                  "relative overflow-hidden rounded-lg border bg-background transition-shadow",
+                  "cursor-grab active:cursor-grabbing",
+                  draggingExistingIndex === index ? "ring-2 ring-primary/70" : "hover:shadow-sm",
+                )}
               >
                 <Image
                   src={url}
@@ -405,6 +524,9 @@ export function ProductForm({
                   height={300}
                   className="h-32 w-full object-cover"
                 />
+                <span className="absolute left-2 bottom-2 rounded-full bg-background/90 px-2 py-0.5 text-xs font-medium text-foreground shadow-sm">
+                  #{index + 1}
+                </span>
                 <Button
                   type="button"
                   variant="destructive"
@@ -417,10 +539,18 @@ export function ProductForm({
               </figure>
             ))}
 
-            {newPreviews.map((preview) => (
+            {newPreviews.map((preview, index) => (
               <figure
                 key={preview.id}
-                className="relative overflow-hidden rounded-lg border"
+                draggable
+                onDragStart={handleNewDragStart(index)}
+                onDragOver={handleNewDragOver(index)}
+                onDragEnd={handleNewDragEnd}
+                className={cn(
+                  "relative overflow-hidden rounded-lg border bg-background transition-shadow",
+                  "cursor-grab active:cursor-grabbing",
+                  draggingNewIndex === index ? "ring-2 ring-primary/70" : "hover:shadow-sm",
+                )}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -428,6 +558,9 @@ export function ProductForm({
                   alt={preview.file.name}
                   className="h-32 w-full object-cover"
                 />
+                <span className="absolute left-2 bottom-2 rounded-full bg-background/90 px-2 py-0.5 text-xs font-medium text-foreground shadow-sm">
+                  #{existingImages.length + index + 1}
+                </span>
                 <Button
                   type="button"
                   variant="secondary"
@@ -446,7 +579,7 @@ export function ProductForm({
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>

@@ -10,7 +10,13 @@ import { toast } from "sonner";
 
 import { useCart } from "@/components/cart/cart-provider";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { sendChatbotEvent } from "@/lib/chatbot";
 import { formatCurrencyINR } from "@/lib/utils";
 
@@ -20,27 +26,65 @@ export function CartView() {
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
 
+  const buildQuantityOptions = (stock: number | undefined, currentQty: number) => {
+    if (stock !== undefined && stock <= 0) {
+      return [currentQty];
+    }
+
+    const limit = stock !== undefined && stock > 0 ? Math.min(stock, 10) : 10;
+    const options = Array.from({ length: limit }, (_, index) => index + 1);
+    if (!options.includes(currentQty)) {
+      options.push(currentQty);
+    }
+    return options.sort((a, b) => a - b);
+  };
+
   const handleQuantityChange = (productId: string, quantity: number) => {
     const existingItem = items.find((cartItem) => cartItem.productId === productId);
-    const normalized = Math.max(1, Math.min(99, Math.floor(quantity)));
-    updateQuantity(productId, normalized);
 
-    if (existingItem) {
-      const currentTotalItems = totalItems;
-      const nextTotalItems = currentTotalItems - existingItem.quantity + normalized;
-      const nextSubtotal =
-        subtotal - existingItem.price * existingItem.quantity + existingItem.price * normalized;
-
-      void sendChatbotEvent("cart.updated", {
-        action: "update",
-        productId,
-        quantity: normalized,
-        cart: {
-          totalItems: nextTotalItems,
-          subtotal: nextSubtotal,
-        },
-      });
+    if (!existingItem) {
+      return;
     }
+
+    const normalizedInput = Math.max(0, Math.floor(quantity));
+    const stockLimit =
+      typeof existingItem.stock === "number" && !Number.isNaN(existingItem.stock)
+        ? Math.max(0, Math.floor(existingItem.stock))
+        : undefined;
+    const clampedQuantity =
+      stockLimit !== undefined
+        ? Math.max(0, Math.min(stockLimit, normalizedInput))
+        : Math.max(0, Math.min(99, normalizedInput));
+
+    if (stockLimit !== undefined && normalizedInput > stockLimit) {
+      toast.info(
+        `Only ${stockLimit} ${
+          stockLimit === 1 ? "unit is" : "units are"
+        } available for ${existingItem.title}.`,
+      );
+    }
+
+    if (clampedQuantity === 0) {
+      handleRemove(productId);
+      return;
+    }
+
+    updateQuantity(productId, clampedQuantity);
+
+    const currentTotalItems = totalItems;
+    const nextTotalItems = currentTotalItems - existingItem.quantity + clampedQuantity;
+    const nextSubtotal =
+      subtotal - existingItem.price * existingItem.quantity + existingItem.price * clampedQuantity;
+
+    void sendChatbotEvent("cart.updated", {
+      action: "update",
+      productId,
+      quantity: clampedQuantity,
+      cart: {
+        totalItems: nextTotalItems,
+        subtotal: nextSubtotal,
+      },
+    });
   };
 
   const handleRemove = (productId: string) => {
@@ -119,14 +163,26 @@ export function CartView() {
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <span>{formatCurrencyINR(item.price)}</span>
                   <span>&times;</span>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={item.stock ?? 99}
-                    value={item.quantity}
-                    onChange={(event) => handleQuantityChange(item.productId, Number(event.target.value))}
-                    className="h-9 w-20"
-                  />
+                  <Select
+                    value={String(item.quantity)}
+                    onValueChange={(value) => handleQuantityChange(item.productId, Number(value))}
+                  >
+                    <SelectTrigger className="h-9 w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {buildQuantityOptions(item.stock, item.quantity).map((option) => (
+                        <SelectItem key={option} value={String(option)}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {typeof item.stock === "number" ? (
+                    <span className="text-xs text-muted-foreground">
+                      Max {item.stock} {item.stock === 1 ? "unit" : "units"}
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <div className="flex flex-col items-end justify-between gap-3">

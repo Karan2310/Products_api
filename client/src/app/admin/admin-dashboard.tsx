@@ -252,6 +252,7 @@ export function AdminDashboard({ initialFilters }: AdminDashboardProps) {
         body: JSON.stringify({
           ...payload.values,
           images: [...payload.existingImages, ...uploadedImages],
+          removedImages: payload.removedImages,
         }),
       });
 
@@ -306,6 +307,7 @@ export function AdminDashboard({ initialFilters }: AdminDashboardProps) {
         body: JSON.stringify({
           ...payload.values,
           images: [...payload.existingImages, ...uploadedImages],
+          removedImages: payload.removedImages,
         }),
       });
 

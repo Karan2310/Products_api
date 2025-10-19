@@ -115,11 +115,38 @@ export function ProductsExplorer() {
   }, [query.error]);
 
   const categories = query.data?.meta.availableCategories ?? [];
+  const totalProducts = query.data?.meta.total ?? 0;
+  const showingProducts = query.data?.data.length ?? 0;
+  const summaryText =
+    query.isLoading && !query.data
+      ? "Loading product recommendations..."
+      : `Showing ${showingProducts} of ${totalProducts} products`;
+
+  const activeFilters = useMemo(() => {
+    const filtersList: Array<{ label: string; value: string }> = [];
+
+    if (debouncedSearch) {
+      filtersList.push({ label: "Search", value: debouncedSearch });
+    }
+
+    if (selectedCategory !== "all") {
+      filtersList.push({ label: "Category", value: selectedCategory });
+    }
+
+    if (sort !== "newest") {
+      const sortLabel = sortOptions.find((option) => option.value === sort)?.label ?? "Custom";
+      filtersList.push({ label: "Sort", value: sortLabel });
+    }
+
+    return filtersList;
+  }, [debouncedSearch, selectedCategory, sort]);
+
+  const hasActiveFilters = activeFilters.length > 0;
 
   return (
-    <div className="container space-y-6">
-      <div className="flex flex-col gap-4 rounded-lg border bg-background p-4 shadow-sm md:flex-row md:items-end md:justify-between">
-        <div className="flex w-full flex-col gap-2 md:max-w-sm">
+    <div className="space-y-6">
+      <div className="grid gap-4 rounded-2xl border border-border/70 bg-background/90 p-4 shadow-sm backdrop-blur md:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)_minmax(0,1fr)_auto] animate-filter-expand">
+        <div className="flex w-full flex-col gap-2">
           <label className="text-sm font-medium text-muted-foreground">Search products</label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -131,10 +158,10 @@ export function ProductsExplorer() {
             />
           </div>
         </div>
-        <div className="flex w-full flex-col gap-2 md:w-auto">
+        <div className="flex w-full flex-col gap-2">
           <label className="text-sm font-medium text-muted-foreground">Category</label>
           <Select value={selectedCategory ?? "all"} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full md:w-48">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="All categories" />
             </SelectTrigger>
             <SelectContent>
@@ -147,10 +174,10 @@ export function ProductsExplorer() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex w-full flex-col gap-2 md:w-auto">
+        <div className="flex w-full flex-col gap-2">
           <label className="text-sm font-medium text-muted-foreground">Sort by</label>
           <Select value={sort} onValueChange={setSort}>
-            <SelectTrigger className="w-full md:w-56">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Sort products" />
             </SelectTrigger>
             <SelectContent>
@@ -162,18 +189,40 @@ export function ProductsExplorer() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-end">
+        <div className="flex items-end justify-end">
           <Button
-            variant="outline"
+            variant={hasActiveFilters ? "outline" : "ghost"}
             onClick={() => {
               setSearchTerm("");
               setSelectedCategory("all");
               setSort("newest");
             }}
+            disabled={!hasActiveFilters}
           >
-            Reset
+            Reset filters
           </Button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+        <span>{summaryText}</span>
+        {hasActiveFilters ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {activeFilters.map((filter) => (
+              <span
+                key={`${filter.label}-${filter.value}`}
+                className="inline-flex items-center gap-2 rounded-full border border-dashed border-primary/50 bg-primary/5 px-3 py-1 text-xs font-medium text-primary"
+              >
+                <span className="uppercase text-[0.6rem] tracking-wide text-primary/70">
+                  {filter.label}
+                </span>
+                {filter.value}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span>Use filters to personalize your browsing experience.</span>
+        )}
       </div>
 
       {query.isLoading ? (
@@ -190,7 +239,7 @@ export function ProductsExplorer() {
       ) : null}
 
       {query.isSuccess && query.data.data.length > 0 ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {query.data.data.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}

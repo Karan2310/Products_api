@@ -47,12 +47,94 @@
   --ring: 0 0% 98%;
 }
 
-* {
-  @apply border-border;
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", sans-serif;
+  }
+
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :root *,
+    :root *::before,
+    :root *::after {
+      transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+      transition-duration: 180ms;
+      transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+  }
 }
 
-body {
-  @apply bg-background text-foreground;
-  font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+@keyframes scale-in-soft {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes scale-out-soft {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+}
+
+@keyframes fade-expand {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes image-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--slide-direction, 1) * 18px));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@layer utilities {
+  .animate-scale-in-soft {
+    animation: scale-in-soft 0.22s cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+
+  .animate-scale-out-soft {
+    animation: scale-out-soft 0.18s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  }
+
+  .animate-filter-expand {
+    animation: fade-expand 0.28s ease-out both;
+  }
+
+  .animate-image-slide {
+    animation: image-slide-in 0.3s ease-out both;
+  }
 }

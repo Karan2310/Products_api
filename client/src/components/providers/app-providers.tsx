@@ -7,7 +7,9 @@ import { ReactNode, useState } from "react";
 import { Toaster } from "sonner";
 
 import { CartProvider } from "@/components/cart/cart-provider";
+import { PendingCartSync } from "@/components/cart/pending-cart-sync";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { ProfileProvider } from "@/components/profile/profile-provider";
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -22,7 +24,10 @@ export function AppProviders({ children, session }: AppProvidersProps) {
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
           <CartProvider>
-            {children}
+            <ProfileProvider>
+              <PendingCartSync />
+              {children}
+            </ProfileProvider>
             <Toaster position="bottom-left" richColors duration={4000} />
           </CartProvider>
         </QueryClientProvider>
