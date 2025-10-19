@@ -11,6 +11,7 @@ import {
   SortAsc,
   SortDesc,
   Trash2,
+  XCircle,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -443,7 +444,21 @@ export function AdminDashboard({ initialFilters }: AdminDashboardProps) {
     }));
   }, []);
 
+  const handleClearFilters = useCallback(() => {
+    setSearchInput("");
+    setFilters((current) => ({
+      ...current,
+      page: 1,
+      search: undefined,
+      categories: undefined,
+    }));
+  }, []);
+
   const currentMeta = data?.meta;
+  const hasActiveFilters =
+    selectedCategories.length > 0 ||
+    Boolean(filters.search) ||
+    Boolean(searchInput.trim());
 
   return (
     <div className="space-y-6">
@@ -617,6 +632,17 @@ export function AdminDashboard({ initialFilters }: AdminDashboardProps) {
               </Badge>
           </div>
             <div className="flex flex-wrap items-center gap-3">
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-11 rounded-lg px-4"
+                  onClick={handleClearFilters}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Clear filters
+                </Button>
+              )}
               <Label
                 htmlFor="page-size"
                 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
