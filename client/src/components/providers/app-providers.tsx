@@ -23,7 +23,7 @@ export function AppProviders({ children, session }: AppProvidersProps) {
         <QueryClientProvider client={queryClient}>
           <CartProvider>
             {children}
-            <Toaster position="top-right" richColors duration={4000} />
+            <Toaster position="bottom-left" richColors duration={4000} />
           </CartProvider>
         </QueryClientProvider>
       </ThemeProvider>
