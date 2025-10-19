@@ -32,18 +32,26 @@ export function AddressList() {
     setDialogOpen(true);
   };
 
-  const handleSetDefault = (address: ProfileAddress) => {
-    setDefaultAddress(address.id);
-    toast.success("Default address updated", {
-      description: `${address.label} is now your default shipping address.`,
-    });
+  const handleSetDefault = async (address: ProfileAddress) => {
+    try {
+      await setDefaultAddress(address.id);
+      toast.success("Default address updated", {
+        description: `${address.label} is now your default shipping address.`,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update address");
+    }
   };
 
-  const handleDelete = (address: ProfileAddress) => {
-    deleteAddress(address.id);
-    toast.success("Address removed", {
-      description: `${address.label} was removed from your profile.`,
-    });
+  const handleDelete = async (address: ProfileAddress) => {
+    try {
+      await deleteAddress(address.id);
+      toast.success("Address removed", {
+        description: `${address.label} was removed from your profile.`,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove address");
+    }
   };
 
   return (

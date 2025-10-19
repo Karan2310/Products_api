@@ -81,17 +81,21 @@ export function AddressFormDialog({ address, open, onOpenChange }: AddressFormDi
     });
   }, [address, basics.name, basics.phone, form, open]);
 
-  const submit = (values: AddressFormValues) => {
-    upsertAddress({
-      ...values,
-      isDefault: Boolean(values.isDefault),
-    });
-    toast.success(address ? "Address updated" : "Address added", {
-      description: Boolean(values.isDefault)
-        ? "This address is now your default shipping address."
-        : undefined,
-    });
-    onOpenChange(false);
+  const submit = async (values: AddressFormValues) => {
+    try {
+      await upsertAddress({
+        ...values,
+        isDefault: Boolean(values.isDefault),
+      });
+      toast.success(address ? "Address updated" : "Address added", {
+        description: Boolean(values.isDefault)
+          ? "This address is now your default shipping address."
+          : undefined,
+      });
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save address");
+    }
   };
 
   return (
@@ -235,7 +239,7 @@ export function AddressFormDialog({ address, open, onOpenChange }: AddressFormDi
               control={form.control}
               name="isDefault"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center gap-2 text-sm">
+                <FormItem className="flex flex-row items-center gap-2 space-y-0 text-sm">
                   <FormControl>
                     <Checkbox
                       checked={field.value ?? false}
@@ -243,7 +247,7 @@ export function AddressFormDialog({ address, open, onOpenChange }: AddressFormDi
                       className="h-4 w-4"
                     />
                   </FormControl>
-                  <span className="text-muted-foreground">Set as default address</span>
+                  <span className="text-foreground">Set as default address</span>
                 </FormItem>
               )}
             />

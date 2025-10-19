@@ -35,11 +35,15 @@ export function ProfileBasicsForm() {
     form.reset(basics);
   }, [basics, form]);
 
-  const submit = (values: BasicsFormValues) => {
-    updateBasics(values);
-    toast.success("Details saved", {
-      description: "Your profile information was updated.",
-    });
+  const submit = async (values: BasicsFormValues) => {
+    try {
+      await updateBasics(values);
+      toast.success("Details saved", {
+        description: "Your profile information was updated.",
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update profile");
+    }
   };
 
   return (

@@ -1,6 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 
 type ProfileBasics = {
   name: string;
@@ -30,13 +32,13 @@ type ProfileState = {
 type ProfileContextValue = {
   basics: ProfileBasics;
   addresses: ProfileAddress[];
-  upsertAddress: (address: Omit<ProfileAddress, "id"> & { id?: string }) => void;
-  deleteAddress: (id: string) => void;
-  setDefaultAddress: (id: string) => void;
-  updateBasics: (basics: ProfileBasics) => void;
+  loading: boolean;
+  refresh: () => Promise<void>;
+  upsertAddress: (address: Omit<ProfileAddress, "id"> & { id?: string }) => Promise<void>;
+  deleteAddress: (id: string) => Promise<void>;
+  setDefaultAddress: (id: string) => Promise<void>;
+  updateBasics: (basics: ProfileBasics) => Promise<void>;
 };
-
-const STORAGE_KEY = "products_profile_v1";
 
 const defaultState: ProfileState = {
   basics: {
@@ -49,142 +51,273 @@ const defaultState: ProfileState = {
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
-const loadInitialState = (): ProfileState => {
-  if (typeof window === "undefined") {
-    return defaultState;
+type ApiAddress = Partial<Omit<ProfileAddress, "label" | "isDefault">> & {
+  id?: string;
+  label?: ProfileAddress["label"] | string;
+  isDefault?: boolean;
+};
+
+const normalizeAddresses = (
+  addresses: ApiAddress[] | undefined,
+  fallbackName: string,
+  fallbackPhone: string,
+): ProfileAddress[] => {
+  if (!Array.isArray(addresses)) {
+    return [];
   }
 
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return defaultState;
-    }
-
-    const parsed = JSON.parse(raw) as Partial<ProfileState>;
-    const addresses = Array.isArray(parsed.addresses)
-      ? parsed.addresses.map((address, index) => ({
-          id: address?.id ?? `addr-${index}-${Math.random().toString(36).slice(2)}`,
-          label: address?.label ?? "Home",
-          recipient: address?.recipient ?? parsed.basics?.name ?? "",
-          line1: address?.line1 ?? "",
-          line2: address?.line2 ?? "",
-          city: address?.city ?? "",
-          state: address?.state ?? "",
-          postalCode: address?.postalCode ?? "",
-          country: address?.country ?? "",
-          phone: address?.phone ?? parsed.basics?.phone ?? "",
-          isDefault: Boolean(address?.isDefault),
-        }))
-      : [];
-
-    if (addresses.length > 0 && !addresses.some((address) => address.isDefault)) {
-      addresses[0] = { ...addresses[0], isDefault: true };
-    }
-
-    return {
-      basics: {
-        name: parsed.basics?.name ?? "",
-        email: parsed.basics?.email ?? "",
-        phone: parsed.basics?.phone ?? "",
-      },
-      addresses,
-    } satisfies ProfileState;
-  } catch (error) {
-    console.warn("Failed to parse profile state", error);
-    return defaultState;
-  }
+  return addresses.map((entry, index) => ({
+    id: entry.id ?? `addr-${index}-${Math.random().toString(36).slice(2)}`,
+    label: (entry.label === "Office" || entry.label === "Other" ? entry.label : "Home") as ProfileAddress["label"],
+    recipient: entry.recipient ?? fallbackName,
+    line1: entry.line1 ?? "",
+    line2: entry.line2 ?? "",
+    city: entry.city ?? "",
+    state: entry.state ?? "",
+    postalCode: entry.postalCode ?? "",
+    country: entry.country ?? "",
+    phone: entry.phone ?? fallbackPhone,
+    isDefault: Boolean(entry.isDefault),
+  }));
 };
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<ProfileState>(() => loadInitialState());
+  const [state, setState] = useState<ProfileState>(defaultState);
+  const [loading, setLoading] = useState(false);
+  const { data: session, status } = useSession();
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
+  const accessToken = session?.accessToken;
+
+  const fetchProfile = useCallback(async () => {
+    if (!apiBaseUrl || status !== "authenticated" || !accessToken) {
       return;
     }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
 
-  const value = useMemo<ProfileContextValue>(() => {
-    const upsertAddress: ProfileContextValue["upsertAddress"] = (address) => {
-      setState((current) => {
-        const id = address.id ?? `addr-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const existingIndex = current.addresses.findIndex((item) => item.id === id);
-        let nextAddresses: ProfileAddress[] = [];
-
-        if (existingIndex === -1) {
-          nextAddresses = [
-            ...current.addresses,
-            {
-              ...address,
-              id,
-              isDefault: current.addresses.length === 0 ? true : Boolean(address.isDefault),
-            },
-          ];
-        } else {
-          nextAddresses = [...current.addresses];
-          nextAddresses[existingIndex] = {
-            ...nextAddresses[existingIndex],
-            ...address,
-            id,
-          };
-        }
-
-        if (address.isDefault) {
-          nextAddresses = nextAddresses.map((item) => ({
-            ...item,
-            isDefault: item.id === id,
-          }));
-        }
-
-        return {
-          ...current,
-          addresses: nextAddresses,
-        } satisfies ProfileState;
+    setLoading(true);
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/profile`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        cache: "no-store",
       });
-    };
 
-    const deleteAddress: ProfileContextValue["deleteAddress"] = (id) => {
-      setState((current) => {
-        const next = current.addresses.filter((address) => address.id !== id);
-        if (next.length > 0 && !next.some((address) => address.isDefault)) {
-          next[0] = { ...next[0], isDefault: true };
+      if (!response.ok) {
+        if (response.status === 401) {
+          setState(defaultState);
+          return;
         }
-        return {
-          ...current,
-          addresses: next,
-        };
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody?.error ?? "Failed to load profile");
+      }
+
+      const data: {
+        basics?: Partial<ProfileBasics>;
+        addresses?: Array<
+          Partial<Omit<ProfileAddress, "label" | "isDefault">> & {
+            id?: string;
+            label?: ProfileAddress["label"] | string;
+            isDefault?: boolean;
+          }
+        >;
+      } = await response.json();
+      setState({
+        basics: {
+          name: data.basics?.name ?? "",
+          email: data.basics?.email ?? "",
+          phone: data.basics?.phone ?? "",
+        },
+        addresses: Array.isArray(data.addresses)
+          ? data.addresses.map((address, index) => ({
+              id: address.id ?? `addr-${index}-${Math.random().toString(36).slice(2)}`,
+              label: (address.label === "Office" || address.label === "Other" ? address.label : "Home") as ProfileAddress["label"],
+              recipient: address.recipient ?? data.basics?.name ?? "",
+              line1: address.line1 ?? "",
+              line2: address.line2 ?? "",
+              city: address.city ?? "",
+              state: address.state ?? "",
+              postalCode: address.postalCode ?? "",
+              country: address.country ?? "",
+              phone: address.phone ?? data.basics?.phone ?? "",
+              isDefault: Boolean(address.isDefault),
+            }))
+          : [],
       });
-    };
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Failed to load profile");
+    } finally {
+      setLoading(false);
+    }
+  }, [apiBaseUrl, accessToken, status]);
 
-    const setDefaultAddress: ProfileContextValue["setDefaultAddress"] = (id) => {
-      setState((current) => ({
-        ...current,
-        addresses: current.addresses.map((address) => ({
-          ...address,
-          isDefault: address.id === id,
-        })),
-      }));
-    };
+  useEffect(() => {
+    if (status !== "authenticated") {
+      setState(defaultState);
+      setLoading(false);
+      return;
+    }
 
-    const updateBasics: ProfileContextValue["updateBasics"] = (basics) => {
+    void fetchProfile();
+  }, [status, fetchProfile]);
+
+  const updateBasics = useCallback<ProfileContextValue["updateBasics"]>(
+    async (basics) => {
+      if (!apiBaseUrl) {
+        throw new Error("NEXT_PUBLIC_API_URL is not configured");
+      }
+      if (status !== "authenticated" || !accessToken) {
+        throw new Error("Not authenticated");
+      }
+
+      const response = await fetch(`${apiBaseUrl}/api/profile/basics`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(basics),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody?.error ?? "Failed to update profile");
+      }
+
+      const data: {
+        basics?: Partial<ProfileBasics>;
+        addresses?: Array<
+          Partial<Omit<ProfileAddress, "label" | "isDefault">> & {
+            id?: string;
+            label?: ProfileAddress["label"] | string;
+            isDefault?: boolean;
+          }
+        >;
+      } = await response.json();
       setState((current) => ({
         ...current,
         basics: {
-          ...basics,
+          name: data.basics?.name ?? basics.name,
+          email: data.basics?.email ?? basics.email,
+          phone: data.basics?.phone ?? basics.phone,
         },
       }));
-    };
+    },
+    [apiBaseUrl, accessToken, status],
+  );
 
-    return {
+  const upsertAddress = useCallback<ProfileContextValue["upsertAddress"]>(
+    async (address) => {
+      if (!apiBaseUrl) {
+        throw new Error("NEXT_PUBLIC_API_URL is not configured");
+      }
+      if (status !== "authenticated" || !accessToken) {
+        throw new Error("Not authenticated");
+      }
+
+      const { id, ...payload } = address;
+      const method = id ? "PUT" : "POST";
+      const url = id
+        ? `${apiBaseUrl}/api/profile/addresses/${id}`
+        : `${apiBaseUrl}/api/profile/addresses`;
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody?.error ?? "Failed to save address");
+      }
+
+      const data: { addresses?: ApiAddress[] } = await response.json();
+      setState((current) => ({
+        ...current,
+        addresses: normalizeAddresses(data.addresses, current.basics.name, current.basics.phone),
+      }));
+    },
+    [apiBaseUrl, accessToken, status],
+  );
+
+  const deleteAddress = useCallback<ProfileContextValue["deleteAddress"]>(
+    async (id) => {
+      if (!apiBaseUrl) {
+        throw new Error("NEXT_PUBLIC_API_URL is not configured");
+      }
+      if (status !== "authenticated" || !accessToken) {
+        throw new Error("Not authenticated");
+      }
+
+      const response = await fetch(`${apiBaseUrl}/api/profile/addresses/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody?.error ?? "Failed to delete address");
+      }
+
+      const data: { addresses?: ApiAddress[] } = await response.json();
+      setState((current) => ({
+        ...current,
+        addresses: normalizeAddresses(data.addresses, current.basics.name, current.basics.phone),
+      }));
+    },
+    [apiBaseUrl, accessToken, status],
+  );
+
+  const setDefaultAddress = useCallback<ProfileContextValue["setDefaultAddress"]>(
+    async (id) => {
+      if (!apiBaseUrl) {
+        throw new Error("NEXT_PUBLIC_API_URL is not configured");
+      }
+      if (status !== "authenticated" || !accessToken) {
+        throw new Error("Not authenticated");
+      }
+
+      const response = await fetch(`${apiBaseUrl}/api/profile/addresses/${id}/default`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody?.error ?? "Failed to update default address");
+      }
+
+      const data: { addresses?: ApiAddress[] } = await response.json();
+      setState((current) => ({
+        ...current,
+        addresses: normalizeAddresses(data.addresses, current.basics.name, current.basics.phone),
+      }));
+    },
+    [apiBaseUrl, accessToken, status],
+  );
+
+  const value = useMemo<ProfileContextValue>(
+    () => ({
       basics: state.basics,
       addresses: state.addresses,
+      loading,
+      refresh: fetchProfile,
       upsertAddress,
       deleteAddress,
       setDefaultAddress,
       updateBasics,
-    } satisfies ProfileContextValue;
-  }, [state]);
+    }),
+    [state.basics, state.addresses, loading, fetchProfile, upsertAddress, deleteAddress, setDefaultAddress, updateBasics],
+  );
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;
 }

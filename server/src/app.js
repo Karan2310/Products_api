@@ -8,6 +8,7 @@ import chatbotRoutes from "./routes/chatbot.routes.js";
 import orderRoutes from "./routes/order.routes.js";
 import productRoutes from "./routes/product.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
+import profileRoutes from "./routes/profile.routes.js";
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/profile", profileRoutes);
 app.use("/chatbot", chatbotRoutes);
 
 app.use((err, _req, res, _next) => {

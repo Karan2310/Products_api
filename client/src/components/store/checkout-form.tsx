@@ -51,7 +51,7 @@ interface CheckoutFormProps {
 
 export function CheckoutForm({ defaultName, defaultEmail }: CheckoutFormProps) {
   const { items, subtotal, clearCart } = useCart();
-  const { addresses, basics } = useProfile();
+  const { addresses, basics, loading: profileLoading } = useProfile();
   const router = useRouter();
   const { data: session } = useSession();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -253,7 +253,11 @@ export function CheckoutForm({ defaultName, defaultEmail }: CheckoutFormProps) {
             </Button>
           </CardHeader>
           <CardContent>
-            {addresses.length === 0 ? (
+            {profileLoading ? (
+              <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                Loading saved addresses...
+              </div>
+            ) : addresses.length === 0 ? (
               <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
                 You haven&apos;t saved any addresses yet. Add one to speed up checkout next time.
               </div>
