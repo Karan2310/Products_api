@@ -138,12 +138,20 @@ export const listProducts = async (req, res) => {
     filter.category = { $in: categories };
   }
 
-  const total = await Product.countDocuments(filter);
-  const products = await Product.find(filter)
-    .sort({ [sortField]: sortOrder === "asc" ? 1 : -1 })
-    .skip((page - 1) * pageSize)
-    .limit(pageSize)
-    .lean();
+  const [total, products, availableCategories] = await Promise.all([
+    Product.countDocuments(filter),
+    Product.find(filter)
+      .sort({ [sortField]: sortOrder === "asc" ? 1 : -1 })
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .lean(),
+    Product.distinct("category"),
+  ]);
+
+  const normalizedCategories = availableCategories
+    .filter((category) => typeof category === "string" && category.trim().length > 0)
+    .map((category) => category.trim())
+    .sort((a, b) => a.localeCompare(b));
 
   return res.json({
     data: products.map(serializeProduct),
@@ -156,6 +164,7 @@ export const listProducts = async (req, res) => {
       order: sortOrder,
       search: search ?? null,
       categories: categories,
+      availableCategories: normalizedCategories,
     },
   });
 };

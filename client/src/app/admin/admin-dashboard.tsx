@@ -211,6 +211,10 @@ export function AdminDashboard({ initialFilters }: AdminDashboardProps) {
   const isTableLoading = isLoading || status === "loading";
 
   const categories = useMemo(() => {
+    if (data?.meta.availableCategories?.length) {
+      return data.meta.availableCategories;
+    }
+
     const items = new Set<string>();
     data?.data.forEach((product) => {
       if (product.category) {

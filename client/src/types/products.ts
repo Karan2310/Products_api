@@ -20,6 +20,7 @@ export type ProductsResponse = {
     sort: string;
     order: "asc" | "desc";
     search: string | null;
-    category: string | null;
+    categories: string[];
+    availableCategories: string[];
   };
 };
