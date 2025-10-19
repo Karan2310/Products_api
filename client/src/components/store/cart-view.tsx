@@ -21,14 +21,15 @@ export function CartView() {
   const [pending, setPending] = useState<string | null>(null);
 
   const handleQuantityChange = (productId: string, quantity: number) => {
+    const existingItem = items.find((cartItem) => cartItem.productId === productId);
     const normalized = Math.max(1, Math.min(99, Math.floor(quantity)));
     updateQuantity(productId, normalized);
 
-    if (item) {
+    if (existingItem) {
       const currentTotalItems = totalItems;
-      const nextTotalItems = currentTotalItems - item.quantity + normalized;
+      const nextTotalItems = currentTotalItems - existingItem.quantity + normalized;
       const nextSubtotal =
-        subtotal - item.price * item.quantity + item.price * normalized;
+        subtotal - existingItem.price * existingItem.quantity + existingItem.price * normalized;
 
       void sendChatbotEvent("cart.updated", {
         action: "update",

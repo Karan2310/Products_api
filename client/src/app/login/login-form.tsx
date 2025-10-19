@@ -31,7 +31,10 @@ interface LoginFormProps {
   redirectTo?: string | null;
 }
 
-const resolveRedirectTarget = (redirectTo?: string | null, fallback?: string) => {
+const resolveRedirectTarget = (
+  redirectTo?: string | null,
+  fallback = "/"
+): string => {
   if (redirectTo && redirectTo.startsWith("/")) {
     return redirectTo;
   }
